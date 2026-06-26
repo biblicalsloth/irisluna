@@ -12,7 +12,7 @@ const CY = 80;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 const CANCEL_THRESHOLD = 48;
 
-type Phase = "idle" | "recording" | "tooShort" | "permissionDenied";
+type Phase = "idle" | "recording" | "awaitingPermission" | "tooShort" | "permissionDenied" | "tapToStart";
 
 interface HoldToRecordProps {
   onComplete: (blob: Blob, mimeType: string, durationMs: number) => void;
@@ -42,14 +42,29 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS, label = "hold
   }, [maxMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startRecording = useCallback(async (e: React.PointerEvent) => {
-    if (phase === "recording") return;
+    if (phase === "recording" || phase === "awaitingPermission") return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     pointerOrigin.current = { x: e.clientX, y: e.clientY };
     holdingRef.current = true;
 
+    // Show waiting state if getUserMedia is slow (first-time permission dialog)
+    const permTimeout = setTimeout(() => {
+      if (holdingRef.current) setPhase("awaitingPermission");
+    }, 300);
+
     try {
       const recorder = new AudioRecorder();
       await recorder.start();
+      clearTimeout(permTimeout);
+
+      if (!holdingRef.current) {
+        // User released while permission dialog was open — cancel and prompt to hold again
+        recorder.cancel();
+        setPhase("tapToStart");
+        setTimeout(() => setPhase((p) => (p === "tapToStart" ? "idle" : p)), 3000);
+        return;
+      }
+
       recorderRef.current = recorder;
       startRef.current = Date.now();
       setPhase("recording");
@@ -57,6 +72,7 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS, label = "hold
       navigator.vibrate?.(12);
       rafRef.current = requestAnimationFrame(tick);
     } catch {
+      clearTimeout(permTimeout);
       holdingRef.current = false;
       setPhase("permissionDenied");
     }
@@ -252,6 +268,30 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS, label = "hold
             style={{ color: "#B7AEEA" }}
           >
             speaking…
+          </motion.p>
+        )}
+        {phase === "awaitingPermission" && (
+          <motion.p
+            key="awaiting"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.35 }}
+            className="text-muted text-[11px] tracking-[0.06em] text-center max-w-[200px] leading-relaxed"
+          >
+            allow microphone access above
+          </motion.p>
+        )}
+        {phase === "tapToStart" && (
+          <motion.p
+            key="tapToStart"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.35 }}
+            className="text-muted text-[11px] tracking-[0.06em] text-center max-w-[200px] leading-relaxed"
+          >
+            microphone ready — hold to speak
           </motion.p>
         )}
         {phase === "tooShort" && (
