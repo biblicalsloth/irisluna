@@ -49,16 +49,6 @@ export function Garden({ flowers, seed, onFlowerClick }: GardenProps) {
       style={{ minHeight: "52vh" }}
       aria-label="Your garden"
     >
-      {/* Atmospheric ground — darkens towards edges, lighter center line at horizon */}
-      <div
-        className="absolute inset-x-0 bottom-0 pointer-events-none"
-        aria-hidden
-        style={{
-          height: "38%",
-          background:
-            "radial-gradient(ellipse 80% 60% at 50% 100%, oklch(0.10 0.020 281) 0%, oklch(0.07 0.018 281) 40%, oklch(0.05 0.017 281) 100%)",
-        }}
-      />
 
       {/* Horizon line — 1px barely-there */}
       <div

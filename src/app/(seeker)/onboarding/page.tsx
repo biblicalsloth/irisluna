@@ -3,6 +3,9 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
+
+const Aurora = dynamic(() => import("@/components/Aurora"), { ssr: false });
 
 const ONBOARDED_KEY = "il_onboarded";
 
@@ -36,17 +39,16 @@ export default function OnboardingPage() {
       onClick={handleBegin}
       style={{ cursor: "default" }}
     >
-      {/* Ambient glow */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 55% 45% at 50% 42%, oklch(0.52 0.118 283 / 0.07) 0%, transparent 70%)",
-        }}
-      />
+      {/* Aurora background */}
+      <div className="fixed inset-0 z-0 pointer-events-none" style={{ mixBlendMode: "screen" }}>
+        <Aurora
+          colorStops={["#5227FF", "#7cff67", "#5227FF"]}
+          amplitude={1}
+          blend={0.2}
+        />
+      </div>
 
-      <div className="relative flex flex-col items-center gap-10 max-w-xs text-center">
+      <div className="relative z-10 flex flex-col items-center gap-10 max-w-xs text-center">
         {/* Iris glyph */}
         <motion.div
           initial={{ opacity: 0, scale: 0.88 }}

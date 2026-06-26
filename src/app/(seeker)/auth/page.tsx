@@ -132,13 +132,14 @@ export default function PaywallPage() {
         throw new Error(err.error ?? "Submission failed");
       }
 
-      const { reading_id, session_token, species } = await submitRes.json() as {
+      const { reading_id, session_token, recovery_code, species } = await submitRes.json() as {
         reading_id: string;
         session_token: string;
+        recovery_code?: string;
         species?: string;
       };
 
-      storeReading(reading_id, session_token, spreadType ?? "three", species as import("@/types/garden").FlowerSpecies | undefined);
+      storeReading(reading_id, session_token, spreadType ?? "three", species as import("@/types/garden").FlowerSpecies | undefined, recovery_code);
       clear();
       router.push(`/wait/${reading_id}`);
     } catch (err) {

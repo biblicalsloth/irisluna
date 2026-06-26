@@ -150,13 +150,20 @@ export default function SettingsPage() {
         </p>
       </motion.section>
 
-      {/* Crisis link */}
+      {/* Recovery + Crisis links */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4, duration: 0.8 }}
-        className="flex items-center justify-center"
+        className="flex flex-col items-center gap-3"
       >
+        <a
+          href="/recover"
+          className="text-[10px] uppercase tracking-[0.16em] transition-colors hover:text-muted"
+          style={{ color: "oklch(0.44 0.024 283 / 0.5)" }}
+        >
+          restore a reading with a code
+        </a>
         <a
           href="https://www.opencounseling.com/hotlines-ph"
           target="_blank"

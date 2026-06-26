@@ -4,6 +4,7 @@ import type { ReadingStatus } from "@/lib/supabase/types";
 export interface StoredReading {
   readingId: string;
   sessionToken: string;
+  recoveryCode?: string;
   species: FlowerSpecies;
   stage: FlowerStage;
   status: ReadingStatus;
@@ -40,6 +41,7 @@ export function storeReading(
   sessionToken: string,
   spreadType: "single" | "three" = "three",
   species?: FlowerSpecies,
+  recoveryCode?: string,
 ): StoredReading {
   const existing = getStoredReadings();
   const isFirst = existing.length === 0;
@@ -51,6 +53,7 @@ export function storeReading(
   const reading: StoredReading = {
     readingId,
     sessionToken,
+    recoveryCode,
     species: resolvedSpecies,
     stage: "bud",
     status: "pending_payment",

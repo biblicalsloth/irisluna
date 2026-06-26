@@ -7,8 +7,8 @@ import { AudioRecorder } from "@/lib/audio/recorder";
 const DEFAULT_MAX_MS = 60_000;
 const MIN_MS = 1_000;
 const R = 52;
-const CX = 70;
-const CY = 70;
+const CX = 80;
+const CY = 80;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 const CANCEL_THRESHOLD = 48;
 
@@ -17,9 +17,10 @@ type Phase = "idle" | "recording" | "tooShort" | "permissionDenied";
 interface HoldToRecordProps {
   onComplete: (blob: Blob, mimeType: string, durationMs: number) => void;
   maxMs?: number;
+  label?: string;
 }
 
-export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS }: HoldToRecordProps) {
+export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS, label = "hold to speak your question" }: HoldToRecordProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const recorderRef = useRef<AudioRecorder | null>(null);
@@ -117,9 +118,14 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS }: HoldToRecor
         aria-pressed={isRecording}
       >
         <motion.svg
-          width={140}
-          height={140}
-          viewBox="0 0 140 140"
+          width={160}
+          height={160}
+          viewBox="0 0 160 160"
+          style={{
+            filter: isRecording
+              ? "drop-shadow(0 0 24px rgba(183,174,234,0.5))"
+              : "drop-shadow(0 0 18px rgba(124,111,203,0.45))",
+          }}
           animate={
             isRecording
               ? { scale: 1.04 }
@@ -131,47 +137,91 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS }: HoldToRecor
               : { duration: 4.2, repeat: Infinity, ease: "easeInOut" }
           }
         >
-          {/* Moon halo — outer ring, barely there */}
-          <circle
-            cx={CX} cy={CY} r={68}
+          <defs>
+            <filter id="halo-blur" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="7" />
+            </filter>
+          </defs>
+
+          {/* Dark disc — legibility over busy aurora/garden background */}
+          <circle cx={CX} cy={CY} r={60} fill="rgba(10,10,18,0.62)" />
+
+          {/* Blurred glow halo — pulsing ring */}
+          <motion.circle
+            cx={CX} cy={CY} r={R}
+            fill="none"
+            stroke="#7C6FCB"
+            strokeWidth={18}
+            filter="url(#halo-blur)"
+            animate={{ opacity: isRecording ? 0.6 : [0.22, 0.55, 0.22] }}
+            transition={isRecording
+              ? { duration: 0.3 }
+              : { duration: 4.2, repeat: Infinity, ease: "easeInOut" }
+            }
+          />
+
+          {/* Outer pulse ring */}
+          <motion.circle
+            cx={CX} cy={CY} r={74}
             fill="none"
             stroke="#B7AEEA"
             strokeWidth={1}
-            opacity={isRecording ? 0.04 : 0.08}
+            animate={{ opacity: isRecording ? 0.06 : [0.15, 0.4, 0.15] }}
+            transition={isRecording
+              ? { duration: 0.3 }
+              : { duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }
+            }
           />
+
+          {/* Mid halo ring */}
+          <motion.circle
+            cx={CX} cy={CY} r={64}
+            fill="none"
+            stroke="#B7AEEA"
+            strokeWidth={0.75}
+            animate={{ opacity: isRecording ? 0.05 : [0.1, 0.22, 0.1] }}
+            transition={isRecording
+              ? { duration: 0.3 }
+              : { duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: 0.1 }
+            }
+          />
+
           {/* Track ring */}
           <circle
             cx={CX} cy={CY} r={R}
             fill="none"
-            stroke="#7C6FCB"
+            stroke="#B7AEEA"
             strokeWidth={1.5}
-            opacity={0.18}
+            opacity={isRecording ? 0.3 : 0.6}
           />
+
           {/* Fill arc */}
           <motion.circle
             cx={CX} cy={CY} r={R}
             fill="none"
             stroke="#B7AEEA"
-            strokeWidth={2}
+            strokeWidth={2.5}
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             transform={`rotate(-90 ${CX} ${CY})`}
-            animate={{ strokeDashoffset: dashOffset, opacity: isRecording ? 0.9 : 0 }}
+            animate={{ strokeDashoffset: dashOffset, opacity: isRecording ? 0.95 : 0 }}
             transition={{ duration: 0.04 }}
           />
+
           {/* Inner iris glow when recording */}
           <motion.circle
             cx={CX} cy={CY} r={18}
             fill="#7C6FCB"
-            animate={{ opacity: isRecording ? 0.12 : 0, r: isRecording ? 22 : 18 }}
+            animate={{ opacity: isRecording ? 0.18 : 0, r: isRecording ? 24 : 18 }}
             transition={{ duration: 0.4 }}
           />
+
           {/* Center dot */}
           <motion.circle
-            cx={CX} cy={CY} r={isRecording ? 7 : 4}
+            cx={CX} cy={CY} r={isRecording ? 8 : 5}
             fill={isRecording ? "#B7AEEA" : "#7C6FCB"}
-            animate={{ opacity: isRecording ? 0.9 : 0.35 }}
+            animate={{ opacity: isRecording ? 0.95 : 0.65 }}
             transition={{ duration: 0.3 }}
           />
         </motion.svg>
@@ -188,7 +238,7 @@ export function HoldToRecord({ onComplete, maxMs = DEFAULT_MAX_MS }: HoldToRecor
             transition={{ duration: 0.35 }}
             className="text-muted text-[11px] uppercase tracking-[0.16em]"
           >
-            hold to speak your question
+            {label}
           </motion.p>
         )}
         {phase === "recording" && (

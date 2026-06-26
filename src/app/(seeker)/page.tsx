@@ -3,14 +3,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { Garden } from "@/components/garden/Garden";
-import { AskButton } from "@/components/ui/AskButton";
+import { HoldToRecord } from "@/components/audio/HoldToRecord";
 import type { FlowerData } from "@/types/garden";
 import { getStoredReadings } from "@/lib/session";
 import { hasOnboarded } from "./onboarding/page";
+import { useFlowStore } from "@/lib/flow/store";
+
+const Aurora = dynamic(() => import("@/components/Aurora"), { ssr: false });
 
 export default function GardenPage() {
   const router = useRouter();
+  const setRecording = useFlowStore((s) => s.setRecording);
   const [flowers, setFlowers] = useState<FlowerData[]>([]);
   const [seed, setSeed] = useState(0);
 
@@ -48,8 +53,27 @@ export default function GardenPage() {
     }
   }
 
+  function handleRecordComplete(blob: Blob, mimeType: string, durationMs: number) {
+    setRecording(blob, mimeType, durationMs);
+    router.push("/deck");
+  }
+
   return (
-    <main className="flex flex-col min-h-dvh">
+    <main className="relative flex flex-col min-h-dvh">
+      {/* Aurora WebGL background — screen blend adds glow without replacing dark base */}
+      <div className="fixed inset-0 z-0 pointer-events-none" style={{ mixBlendMode: "screen" }}>
+        <Aurora
+          colorStops={["#5227FF", "#7cff67", "#5227FF"]}
+          amplitude={1}
+          blend={0.2}
+        />
+      </div>
+
+      {/* Garden as decorative background layer */}
+      <div className="absolute inset-0 z-10 flex flex-col">
+        <Garden flowers={flowers} seed={seed} onFlowerClick={handleFlowerClick} />
+      </div>
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -6 }}
@@ -79,18 +103,20 @@ export default function GardenPage() {
         )}
       </motion.header>
 
-      <Garden flowers={flowers} seed={seed} onFlowerClick={handleFlowerClick} />
-
+      {/* Centered record button */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.9, duration: 1, ease: "easeOut" }}
-        className="relative z-20 flex flex-col items-center pb-12 pt-6"
+        transition={{ delay: 0.5, duration: 1, ease: "easeOut" }}
+        className="relative z-20 flex-1 flex items-center justify-center"
       >
-        <AskButton />
+        <HoldToRecord
+          onComplete={handleRecordComplete}
+          label="tap and hold to ask"
+        />
       </motion.div>
 
-      {/* Crisis link — always reachable */}
+      {/* Crisis link + settings */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
