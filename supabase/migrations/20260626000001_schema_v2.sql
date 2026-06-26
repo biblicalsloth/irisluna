@@ -53,6 +53,7 @@ create table if not exists public.cards (
 );
 
 alter table public.cards enable row level security;
+drop policy if exists "cards public read" on public.cards;
 create policy "cards public read" on public.cards for select using (true);
 
 -- ─── Readings (anonymous — identified by session_token) ───────────────────────
