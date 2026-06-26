@@ -22,6 +22,7 @@ export default function GardenPage() {
   const [seed, setSeed] = useState(0);
   const [micState, setMicState] = useState<MicState>("unknown");
   const [requestingMic, setRequestingMic] = useState(false);
+  const [recorded, setRecorded] = useState(false);
 
   // Check mic permission on mount
   useEffect(() => {
@@ -87,7 +88,8 @@ export default function GardenPage() {
 
   function handleRecordComplete(blob: Blob, mimeType: string, durationMs: number) {
     setRecording(blob, mimeType, durationMs);
-    router.push("/deck");
+    setRecorded(true);
+    setTimeout(() => router.push("/deck"), 1500);
   }
 
   return (
@@ -142,14 +144,39 @@ export default function GardenPage() {
         transition={{ delay: 0.5, duration: 1, ease: "easeOut" }}
         className="relative z-20 flex-1 flex flex-col items-center justify-center gap-5"
       >
-        <HoldToRecord
-          onComplete={handleRecordComplete}
-          label="tap and hold to ask"
-        />
+        <AnimatePresence mode="wait">
+          {recorded ? (
+            <motion.div
+              key="recorded"
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="flex flex-col items-center gap-3"
+            >
+              <p
+                className="font-display italic tracking-tight"
+                style={{ fontSize: 20, color: "oklch(0.94 0.018 301 / 0.8)" }}
+              >
+                voice recorded
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "oklch(0.44 0.024 283 / 0.6)" }}>
+                choosing your spread…
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div key="hold" className="flex flex-col items-center gap-5">
+              <HoldToRecord
+                onComplete={handleRecordComplete}
+                label="tap and hold to ask"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Inline mic permission nudge */}
         <AnimatePresence>
-          {(micState === "prompt" || micState === "unknown") && (
+          {!recorded && (micState === "prompt" || micState === "unknown") && (
             <motion.button
               key="mic-prompt"
               type="button"
@@ -165,7 +192,7 @@ export default function GardenPage() {
               {requestingMic ? "waiting…" : "allow microphone"}
             </motion.button>
           )}
-          {micState === "denied" && (
+          {!recorded && micState === "denied" && (
             <motion.p
               key="mic-denied"
               initial={{ opacity: 0, y: 6 }}
