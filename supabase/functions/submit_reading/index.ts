@@ -153,12 +153,12 @@ Deno.serve(async (req) => {
   }
 });
 
-// XXX-XXX from unambiguous chars — 32^6 ≈ 1B combos, no modulo bias
+// XXXX-XXXX-XXXX from unambiguous chars — 32^12 ≈ 2^60, no modulo bias
 function generateRecoveryCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
   const raw = Array.from(bytes).map((b) => chars[b % chars.length]).join("");
-  return `${raw.slice(0, 3)}-${raw.slice(3)}`;
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
 }
 
 function json(body: unknown, status = 200) {

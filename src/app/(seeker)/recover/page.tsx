@@ -8,10 +8,11 @@ import { storeReading } from "@/lib/session";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-// Auto-inserts the dash after position 3
+// Auto-inserts dashes: XXXX-XXXX-XXXX
 function formatCode(raw: string): string {
-  const clean = raw.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 6);
-  if (clean.length > 3) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  const clean = raw.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 12);
+  if (clean.length > 8) return `${clean.slice(0, 4)}-${clean.slice(4, 8)}-${clean.slice(8)}`;
+  if (clean.length > 4) return `${clean.slice(0, 4)}-${clean.slice(4)}`;
   return clean;
 }
 
@@ -29,7 +30,7 @@ export default function RecoverPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (code.length !== 7) return; // XXX-XXX
+    if (code.length !== 14) return; // XXXX-XXXX-XXXX
 
     setLoading(true);
     setError(null);
@@ -73,7 +74,7 @@ export default function RecoverPage() {
     }
   }
 
-  const ready = code.length === 7 && !loading;
+  const ready = code.length === 14 && !loading;
 
   return (
     <main className="flex flex-col items-center justify-center min-h-dvh px-8">
@@ -109,8 +110,8 @@ export default function RecoverPage() {
             spellCheck={false}
             value={code}
             onChange={handleChange}
-            placeholder="ABC-DEF"
-            maxLength={7}
+            placeholder="ABCD-EFGH-JKLM"
+            maxLength={14}
             className="w-full text-center bg-transparent text-moonlight/80 text-xl font-mono tracking-[0.3em] px-4 py-3 rounded-lg outline-none transition-colors placeholder:text-muted/25"
             style={{ border: "1px solid rgba(183,174,234,0.14)" }}
             onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(124,111,203,0.45)")}
