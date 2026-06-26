@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
 
     const sessionToken = crypto.randomUUID();
     const recoveryCode = generateRecoveryCode();
+    const recoveryCodeHash = await hashCode(recoveryCode);
     const pickCount = spread_type === "single" ? 1 : 3;
 
     // Create reading row
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
       .from("readings")
       .insert({
         session_token: sessionToken,
-        recovery_code: recoveryCode,
+        recovery_code: recoveryCodeHash,
         spread_type,
         question_audio_path,
         question_duration_ms: question_duration_ms ?? null,
@@ -152,6 +153,11 @@ Deno.serve(async (req) => {
     return json({ error: "Internal server error" }, 500);
   }
 });
+
+async function hashCode(code: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 // XXXX-XXXX-XXXX from unambiguous chars — 32^12 ≈ 2^60, no modulo bias
 function generateRecoveryCode(): string {

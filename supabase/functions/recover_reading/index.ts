@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
     }
 
     const normalised = recovery_code.toUpperCase();
+    const codeHash = await hashCode(normalised);
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
     const { data: reading, error } = await admin
       .from("readings")
       .select("id, session_token, spread_type, status, recovery_attempts")
-      .eq("recovery_code", normalised)
+      .eq("recovery_code", codeHash)
       .single();
 
     if (error || !reading) {
@@ -59,6 +60,11 @@ Deno.serve(async (req) => {
     return json({ error: "Internal server error" }, 500);
   }
 });
+
+async function hashCode(code: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
