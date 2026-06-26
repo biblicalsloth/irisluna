@@ -5,18 +5,31 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts",
+    "functions:serve": "supabase functions serve"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "framer-motion": "^12.42.0",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.14.0",
+    "wavesurfer.js": "^7.12.8",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "supabase": "^2.108.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
