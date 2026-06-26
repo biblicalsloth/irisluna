@@ -48,8 +48,12 @@ Deno.serve(async (req) => {
 
     const { reading_id, response_audio_path, response_duration_ms } = body;
 
-    const VALID_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webm|mp4)$/;
+    // Path must match {reading_id}-response.{webm|mp4} — scoped to this reading
+    const VALID_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-response\.(webm|mp4)$/;
     if (!response_audio_path || !VALID_PATH.test(response_audio_path)) {
+      return json({ error: "Invalid response audio path" }, 400);
+    }
+    if (!response_audio_path.startsWith(`${reading_id}-response.`)) {
       return json({ error: "Invalid response audio path" }, 400);
     }
 
@@ -66,12 +70,6 @@ Deno.serve(async (req) => {
     const rc = reading as { claimed_by: string | null } & typeof reading;
     if (rc.claimed_by && rc.claimed_by !== user.id) {
       return json({ error: "Reading is claimed by another reader" }, 403);
-    }
-
-    // Path must be scoped to this reading to prevent audio path hijacking
-    const expectedPrefix = `${reading_id}-response.`;
-    if (!response_audio_path.startsWith(expectedPrefix)) {
-      return json({ error: "Invalid response audio path" }, 400);
     }
 
     const { error: updateErr } = await admin
