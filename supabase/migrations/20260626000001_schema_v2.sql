@@ -17,8 +17,8 @@ create table public.profiles (
   id           uuid primary key references auth.users(id) on delete cascade,
   display_name text,
   email        text,
-  role         text not null default 'reader'
-               check (role in ('reader', 'admin')),
+  role         text not null default 'pending'
+               check (role in ('pending', 'reader', 'admin')),
   created_at   timestamptz default now()
 );
 
@@ -27,8 +27,9 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email)
-  values (new.id, new.email);
+  -- New users start as 'pending'; an admin must manually promote to 'reader'.
+  insert into public.profiles (id, email, role)
+  values (new.id, new.email, 'pending');
   return new;
 end;
 $$;

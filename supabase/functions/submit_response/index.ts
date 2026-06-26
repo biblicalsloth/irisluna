@@ -55,12 +55,24 @@ Deno.serve(async (req) => {
 
     const { data: reading, error: readErr } = await admin
       .from("readings")
-      .select("id, email, status, session_token")
+      .select("id, email, status, session_token, claimed_by")
       .eq("id", reading_id)
       .single();
 
     if (readErr || !reading) return json({ error: "Reading not found" }, 404);
     if (reading.status !== "awaiting_response") return json({ error: "Wrong status" }, 409);
+
+    // Prevent response hijack: only the claiming reader may submit
+    const rc = reading as { claimed_by: string | null } & typeof reading;
+    if (rc.claimed_by && rc.claimed_by !== user.id) {
+      return json({ error: "Reading is claimed by another reader" }, 403);
+    }
+
+    // Path must be scoped to this reading to prevent audio path hijacking
+    const expectedPrefix = `${reading_id}-response.`;
+    if (!response_audio_path.startsWith(expectedPrefix)) {
+      return json({ error: "Invalid response audio path" }, 400);
+    }
 
     const { error: updateErr } = await admin
       .from("readings")
@@ -71,7 +83,8 @@ Deno.serve(async (req) => {
         status: "responded",
         claimed_by: user.id,
       })
-      .eq("id", reading_id);
+      .eq("id", reading_id)
+      .or(`claimed_by.is.null,claimed_by.eq.${user.id}`);
 
     if (updateErr) return json({ error: "Update failed" }, 500);
 

@@ -24,7 +24,8 @@ create policy "readings: reader sees full queue"
     )
   );
 
--- Readers can claim and update status (response submission goes through edge fn)
+-- Readers can claim unclaimed rows, or update rows they already own.
+-- WITH CHECK prevents a reader from reassigning claimed_by to someone else.
 create policy "readings: reader update claimed"
   on public.readings for update
   using (
@@ -33,6 +34,15 @@ create policy "readings: reader update claimed"
       where p.id = auth.uid()
         and p.role in ('reader', 'admin')
     )
+    and (claimed_by is null or claimed_by = auth.uid())
+  )
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('reader', 'admin')
+    )
+    and (claimed_by = auth.uid())
   );
 
 -- ─── Reading cards RLS ───────────────────────────────────────────────────────
