@@ -12,6 +12,7 @@ export interface CardRevealData {
   upright_meaning: string;
   reversed_meaning: string;
   keywords: string[];
+  image_path?: string;
   positionLabel?: string;
   reversed?: boolean;
 }
@@ -232,28 +233,135 @@ function CardFaceFront({ card }: { card: CardRevealData }) {
 
 function CardFaceFrontContent({ card }: { card: CardRevealData }) {
   const meaning = card.reversed ? card.reversed_meaning : card.upright_meaning;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const imgSrc = card.image_path && supabaseUrl
+    ? `${supabaseUrl}/storage/v1/object/public/card-art/${card.image_path}`
+    : null;
+
   return (
     <>
-      {card.positionLabel && (
-        <p style={{ fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(183,174,234,0.35)", marginBottom: 6, textAlign: "center" }}>
-          {card.positionLabel}
-        </p>
+      {imgSrc ? (
+        /* Full-bleed image — negative margin escapes the 10px parent padding */
+        <div
+          style={{
+            margin: "-10px -10px 6px -10px",
+            height: 90,
+            flexShrink: 0,
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: "8px 8px 0 0",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imgSrc}
+            alt={card.name}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 36,
+              background: "linear-gradient(to bottom, transparent, #0D0D18)",
+            }}
+          />
+          {card.positionLabel && (
+            <p
+              style={{
+                position: "absolute",
+                top: 6,
+                left: 0,
+                right: 0,
+                fontSize: 7,
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                color: "rgba(183,174,234,0.85)",
+                textAlign: "center",
+                textShadow: "0 1px 3px rgba(0,0,0,0.9)",
+              }}
+            >
+              {card.positionLabel}
+            </p>
+          )}
+        </div>
+      ) : (
+        card.positionLabel && (
+          <p style={{ fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(183,174,234,0.35)", marginBottom: 6, textAlign: "center" }}>
+            {card.positionLabel}
+          </p>
+        )
       )}
-      <p style={{ fontFamily: "var(--font-fraunces)", fontStyle: "italic", fontSize: 13, lineHeight: 1.25, color: "rgba(236,233,245,0.88)", textAlign: "center", marginBottom: 4 }}>
+
+      <p
+        style={{
+          fontFamily: "var(--font-fraunces)",
+          fontStyle: "italic",
+          fontSize: imgSrc ? 11 : 13,
+          lineHeight: 1.2,
+          color: "rgba(236,233,245,0.9)",
+          textAlign: "center",
+          marginBottom: 3,
+          flexShrink: 0,
+        }}
+      >
         {card.name}
       </p>
       {card.reversed && (
-        <p style={{ fontSize: 7.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(217,178,106,0.55)", textAlign: "center", marginBottom: 6 }}>
+        <p
+          style={{
+            fontSize: 7,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "rgba(217,178,106,0.55)",
+            textAlign: "center",
+            marginBottom: 3,
+            flexShrink: 0,
+          }}
+        >
           reversed
         </p>
       )}
-      <div style={{ height: 1, background: "linear-gradient(to right, transparent, rgba(124,111,203,0.2), transparent)", marginBottom: 8, marginTop: card.reversed ? 0 : 4 }} />
-      <p style={{ fontSize: 10, lineHeight: 1.55, color: "rgba(183,174,234,0.5)", textAlign: "center", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>
+      <div
+        style={{
+          height: 1,
+          background: "linear-gradient(to right, transparent, rgba(124,111,203,0.2), transparent)",
+          marginBottom: imgSrc ? 4 : 8,
+          marginTop: card.reversed ? 0 : 3,
+          flexShrink: 0,
+        }}
+      />
+      <p
+        style={{
+          fontSize: imgSrc ? 8.5 : 10,
+          lineHeight: 1.45,
+          color: "rgba(183,174,234,0.5)",
+          textAlign: "center",
+          flex: 1,
+          overflow: "hidden",
+          display: "-webkit-box",
+          WebkitLineClamp: imgSrc ? 2 : 5,
+          WebkitBoxOrient: "vertical",
+        }}
+      >
         {meaning}
       </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 8 }}>
-        {card.keywords.slice(0, 3).map((kw) => (
-          <span key={kw} style={{ fontSize: 7, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(124,111,203,0.45)", background: "rgba(124,111,203,0.08)", borderRadius: 3, padding: "2px 4px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 5, flexShrink: 0 }}>
+        {card.keywords.slice(0, imgSrc ? 2 : 3).map((kw) => (
+          <span
+            key={kw}
+            style={{
+              fontSize: 6.5,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "rgba(124,111,203,0.45)",
+              background: "rgba(124,111,203,0.08)",
+              borderRadius: 3,
+              padding: "2px 4px",
+            }}
+          >
             {kw}
           </span>
         ))}

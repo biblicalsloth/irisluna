@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // Fetch assigned cards
     const { data: cards, error: cardsErr } = await admin
       .from("reading_cards")
-      .select("position, is_reversed, cards(id, name, arcana, suit, number, upright_meaning, reversed_meaning, keywords)")
+      .select("position, is_reversed, cards(id, name, arcana, suit, number, upright_meaning, reversed_meaning, keywords, image_path)")
       .eq("reading_id", reading_id)
       .order("position");
 

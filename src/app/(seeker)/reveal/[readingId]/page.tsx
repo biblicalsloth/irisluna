@@ -117,6 +117,7 @@ export default function RevealPage() {
           upright_meaning: string;
           reversed_meaning: string;
           keywords: string[];
+          image_path?: string;
         }>;
         response_audio_url: string | null;
       }) => {
@@ -130,6 +131,7 @@ export default function RevealPage() {
           upright_meaning: c.upright_meaning,
           reversed_meaning: c.reversed_meaning,
           keywords: c.keywords ?? [],
+          image_path: c.image_path,
           positionLabel: labels[c.position] ?? undefined,
           reversed: c.is_reversed,
         }));
