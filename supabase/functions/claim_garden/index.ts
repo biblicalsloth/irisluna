@@ -41,26 +41,13 @@ Deno.serve(async (req) => {
     if (reading.session_token !== session_token) return json({ error: "Forbidden" }, 403);
     if (!reading.paid_at) return json({ error: "not_paid" }, 409);
 
-    // Derive species from the primary card (position 0).
-    const { data: primaryCard } = await admin
-      .from("reading_cards")
-      .select("card_id")
-      .eq("reading_id", reading.id)
-      .eq("position", 0)
-      .single();
-    let species = "iris";
-    if (primaryCard) {
-      const { data: card } = await admin
-        .from("cards").select("flower_species").eq("id", primaryCard.card_id).single();
-      species = card?.flower_species ?? "iris";
-    }
-
     let seekerId = reading.seeker_id as string | null;
     let gardenCode = reading.garden_code as string | null;
     let isNewGarden = false;
+    let species = "iris";
 
     if (!seekerId) {
-      // First reading for this seeker: mint the garden + key now (post-payment).
+      // First reading: mint garden + key now (post-payment).
       gardenCode = generateGardenCode();
       const gardenCodeHash = await hashCode(gardenCode);
       const { data: seeker, error: seekerErr } = await admin
@@ -69,17 +56,45 @@ Deno.serve(async (req) => {
         console.error("insert seeker error:", seekerErr);
         return json({ error: "Failed to create garden" }, 500);
       }
-      seekerId = seeker.id;
-      isNewGarden = true;
-      species = "iris"; // namesake flower for a brand-new garden
 
-      const { error: updErr } = await admin
+      // Atomic claim: only attach if the reading is still unclaimed. Guards
+      // against two concurrent first-calls minting two gardens.
+      const { data: claimed, error: updErr } = await admin
         .from("readings")
-        .update({ seeker_id: seekerId, garden_code: gardenCode })
-        .eq("id", reading.id);
+        .update({ seeker_id: seeker.id, garden_code: gardenCode })
+        .eq("id", reading.id)
+        .is("seeker_id", null)
+        .select("seeker_id, garden_code")
+        .maybeSingle();
       if (updErr) {
         console.error("attach seeker error:", updErr);
         return json({ error: "Failed to bind garden" }, 500);
+      }
+
+      if (claimed) {
+        seekerId = seeker.id;
+        isNewGarden = true;
+        species = "iris"; // namesake flower for a brand-new garden
+      } else {
+        // Lost the race: another call already attached a garden. Drop our
+        // orphan seeker and use the winner's values.
+        await admin.from("seekers").delete().eq("id", seeker.id);
+        const { data: fresh } = await admin
+          .from("readings").select("seeker_id, garden_code").eq("id", reading.id).single();
+        seekerId = fresh?.seeker_id ?? null;
+        gardenCode = fresh?.garden_code ?? null;
+        isNewGarden = false;
+      }
+    }
+
+    if (!isNewGarden) {
+      // Returning/idempotent path: species from the primary card.
+      const { data: primaryCard } = await admin
+        .from("reading_cards").select("card_id").eq("reading_id", reading.id).eq("position", 0).single();
+      if (primaryCard) {
+        const { data: card } = await admin
+          .from("cards").select("flower_species").eq("id", primaryCard.card_id).single();
+        species = card?.flower_species ?? "iris";
       }
     }
 
