@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { storeReading, setSeeker } from "@/lib/session";
 import type { FlowerSpecies } from "@/types/garden";
@@ -31,6 +31,7 @@ function KeyPageInner() {
   const [timedOut, setTimedOut] = useState(false);
   const pollsRef = useRef(0);
   const storedRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [emailInput, setEmailInput] = useState("");
   const [emailSent, setEmailSent] = useState(false);
@@ -58,10 +59,10 @@ function KeyPageInner() {
       if (r) { setResult(r); return; }
       pollsRef.current += 1;
       if (pollsRef.current >= MAX_POLLS) { setTimedOut(true); return; }
-      setTimeout(tick, POLL_MS);
+      pollTimerRef.current = setTimeout(tick, POLL_MS);
     };
     void tick();
-    return () => { active = false; };
+    return () => { active = false; if (pollTimerRef.current) clearTimeout(pollTimerRef.current); };
   }, [claim, token]);
 
   // On first paid result, persist to device garden exactly once
@@ -74,8 +75,8 @@ function KeyPageInner() {
 
   async function handleEmail() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailInput)) return;
-    await claim(emailInput);
-    setEmailSent(true);
+    const r = await claim(emailInput);
+    if (r) setEmailSent(true);
   }
 
   async function handleCopy() {
