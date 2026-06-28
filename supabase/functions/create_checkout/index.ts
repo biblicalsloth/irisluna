@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const session = await client.checkoutSessions.create({
       product_cart: [{ product_id: Deno.env.get("DODO_PRODUCT_ID")!, quantity: 1 }],
       customer: reading.email ? { email: reading.email } : undefined,
-      return_url: `${appUrl}/wait/${reading_id}?token=${session_token}`,
+      return_url: `${appUrl}/key/${reading_id}?token=${session_token}`,
       metadata: { reading_id },
     });
 
