@@ -16,7 +16,10 @@ interface Reading {
   email: string | null;
   question_audio_path: string;
   question_duration_ms: number | null;
-  payment_screenshot_path: string;
+  paid_at: string | null;
+  dodo_payment_id: string | null;
+  payment_amount: number | null;
+  payment_currency: string | null;
   payment_verified_at: string | null;
   response_audio_path: string | null;
   claimed_by: string | null;
@@ -45,7 +48,6 @@ type ViewState =
   | {
       phase: "ready";
       reading: Reading;
-      screenshotUrl: string | null;
       questionAudioUrl: string | null;
       cards: AssignedCard[];
     }
@@ -80,7 +82,7 @@ export default function AdminReadingPage({
     const { data, error } = await supabase
       .from("readings")
       .select(
-        "id, status, spread_type, created_at, email, question_audio_path, question_duration_ms, payment_screenshot_path, payment_verified_at, response_audio_path, claimed_by, claimed_at"
+        "id, status, spread_type, created_at, email, question_audio_path, question_duration_ms, paid_at, dodo_payment_id, payment_amount, payment_currency, payment_verified_at, response_audio_path, claimed_by, claimed_at"
       )
       .eq("id", readingId)
       .single();
@@ -93,8 +95,7 @@ export default function AdminReadingPage({
     const reading = data as Reading;
 
     // Generate signed URLs + fetch assigned cards in parallel
-    const [screenshotResult, audioResult, rcResult] = await Promise.all([
-      supabase.storage.from("payment-screenshots").createSignedUrl(reading.payment_screenshot_path, 3600),
+    const [audioResult, rcResult] = await Promise.all([
       supabase.storage.from("question-audio").createSignedUrl(reading.question_audio_path, 3600),
       supabase
         .from("reading_cards")
@@ -135,50 +136,12 @@ export default function AdminReadingPage({
     setView({
       phase: "ready",
       reading,
-      screenshotUrl: screenshotResult.data?.signedUrl ?? null,
       questionAudioUrl: audioResult.data?.signedUrl ?? null,
       cards,
     });
   }, [readingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void load(); }, [load]);
-
-  async function handleVerify(action: "verify" | "reject") {
-    if (view.phase !== "ready") return;
-    setActioning(true);
-    setActionError(null);
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!supabaseUrl || !session) {
-      setActionError("Not authenticated.");
-      setActioning(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/verify_payment`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ reading_id: readingId, action }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(err.error ?? "Action failed");
-      }
-
-      await load();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setActioning(false);
-    }
-  }
 
   async function handleClaim() {
     if (view.phase !== "ready" || !currentUserId) return;
@@ -282,7 +245,7 @@ export default function AdminReadingPage({
     );
   }
 
-  const { reading, screenshotUrl, questionAudioUrl } = view;
+  const { reading, questionAudioUrl } = view;
 
   return (
     <main className="flex flex-col min-h-dvh px-6 pt-10 pb-20 max-w-2xl mx-auto">
@@ -355,49 +318,24 @@ export default function AdminReadingPage({
 
       {/* ── Payment section ───────────────────────────────── */}
       <Section title="payment" delay={0.1}>
-        {screenshotUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={screenshotUrl}
-            alt="Payment screenshot"
-            className="w-full rounded-md object-contain max-h-80 mb-4"
-            style={{ background: "oklch(0.07 0.018 281 / 0.6)" }}
-          />
-        ) : (
-          <div
-            className="w-full h-40 rounded-md flex items-center justify-center mb-4"
-            style={{ background: "oklch(0.07 0.018 281 / 0.6)" }}
-          >
-            <span className="text-muted/40 text-xs">screenshot unavailable</span>
-          </div>
-        )}
-
-        {reading.status === "pending_payment" && (
-          <div className="flex gap-3">
-            <ActionButton
-              onClick={() => handleVerify("verify")}
-              disabled={actioning}
-              color="green"
-            >
-              {actioning ? "…" : "verify"}
-            </ActionButton>
-            <ActionButton
-              onClick={() => handleVerify("reject")}
-              disabled={actioning}
-              color="red"
-            >
-              reject
-            </ActionButton>
-          </div>
-        )}
-
-        {reading.status !== "pending_payment" && (
-          <p className="text-[10px] uppercase tracking-[0.14em]" style={{ color: "oklch(0.44 0.024 283 / 0.6)" }}>
-            {reading.payment_verified_at
-              ? `Verified ${new Date(reading.payment_verified_at).toLocaleString()}`
-              : "Not verified"}
-          </p>
-        )}
+        <div className="rounded-lg p-4" style={{ border: "1px solid rgba(124,111,203,0.2)" }}>
+          <p className="text-muted/60 text-[10px] uppercase tracking-[0.15em] mb-2">payment</p>
+          {reading.paid_at ? (
+            <div className="text-sm text-moonlight/80 space-y-1">
+              <p>Paid {new Date(reading.paid_at).toLocaleString()}</p>
+              {reading.payment_amount != null && (
+                <p className="text-muted">
+                  {(reading.payment_amount / 100).toFixed(2)} {reading.payment_currency ?? ""}
+                </p>
+              )}
+              {reading.dodo_payment_id && (
+                <p className="text-muted/50 text-xs font-mono break-all">{reading.dodo_payment_id}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted/60">Awaiting payment.</p>
+          )}
+        </div>
       </Section>
 
       {/* ── Question audio ─────────────────────────────────── */}
