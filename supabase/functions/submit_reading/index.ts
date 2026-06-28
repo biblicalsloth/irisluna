@@ -5,11 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Paths must be UUID.ext — the exact shape get_upload_urls generates.
-// Prevents callers from injecting arbitrary storage paths.
-const VALID_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webm|mp4|png|jpg|jpeg)$/;
+// Audio path must be UUID.ext — the exact shape get_upload_urls generates.
+const VALID_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webm|mp4)$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-// Cryptographically secure random number in [0, 1)
 function cryptoRand(): number {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
@@ -27,35 +26,18 @@ Deno.serve(async (req) => {
       positions: number[];
       question_audio_path: string;
       question_duration_ms?: number;
-      payment_screenshot_path: string;
       email?: string;
-      is_first_reading?: boolean;
       seeker_id?: string;
     };
 
-    const {
-      spread_type,
-      positions,
-      question_audio_path,
-      question_duration_ms,
-      payment_screenshot_path,
-      email,
-      is_first_reading,
-    } = body;
+    const { spread_type, positions, question_audio_path, question_duration_ms, email } = body;
 
-    if (!spread_type || !question_audio_path || !payment_screenshot_path || !positions?.length) {
+    if (!spread_type || !question_audio_path || !positions?.length) {
       return json({ error: "Missing required fields" }, 400);
     }
-
-    // Validate paths match the UUID.ext pattern from get_upload_urls
     if (!VALID_PATH.test(question_audio_path)) {
       return json({ error: "Invalid audio path" }, 400);
     }
-    if (!VALID_PATH.test(payment_screenshot_path)) {
-      return json({ error: "Invalid screenshot path" }, 400);
-    }
-
-    // Validate positions are non-negative integers
     if (!positions.every((p) => Number.isInteger(p) && p >= 0 && p < 20)) {
       return json({ error: "Invalid positions" }, 400);
     }
@@ -69,29 +51,15 @@ Deno.serve(async (req) => {
     const sessionToken = crypto.randomUUID();
     const pickCount = spread_type === "single" ? 1 : 3;
 
-    // Resolve or mint the seeker (anonymous garden owner).
+    // Attach an existing seeker only if a valid id was passed (returning user
+    // who entered their garden key on /pay). Never mint a seeker here.
     let seekerId: string | null = null;
-    let gardenCode: string | undefined;
-
-    if (body.seeker_id) {
+    if (body.seeker_id && UUID.test(body.seeker_id)) {
       const { data: existing } = await admin
         .from("seekers").select("id").eq("id", body.seeker_id).single();
       if (existing) seekerId = existing.id;
     }
 
-    if (!seekerId) {
-      gardenCode = generateGardenCode();
-      const gardenCodeHash = await hashCode(gardenCode);
-      const { data: seeker, error: seekerErr } = await admin
-        .from("seekers").insert({ garden_code_hash: gardenCodeHash }).select("id").single();
-      if (seekerErr || !seeker) {
-        console.error("insert seeker error:", seekerErr);
-        return json({ error: "Failed to create seeker" }, 500);
-      }
-      seekerId = seeker.id;
-    }
-
-    // Create reading row
     const { data: reading, error: readingErr } = await admin
       .from("readings")
       .insert({
@@ -100,7 +68,6 @@ Deno.serve(async (req) => {
         spread_type,
         question_audio_path,
         question_duration_ms: question_duration_ms ?? null,
-        payment_screenshot_path,
         email: email || null,
         status: "pending_payment",
       })
@@ -112,25 +79,20 @@ Deno.serve(async (req) => {
       return json({ error: "Failed to create reading" }, 500);
     }
 
-    // Fetch all cards (id + flower_species for the primary card)
     const { data: allCards, error: cardsErr } = await admin
-      .from("cards")
-      .select("id, flower_species");
-
+      .from("cards").select("id, flower_species");
     if (cardsErr || !allCards) {
       return json({ error: "Failed to load deck" }, 500);
     }
 
-    // Build id→species map before shuffling
     const speciesMap: Record<number, string | null> = {};
     for (const c of allCards as { id: number; flower_species: string | null }[]) {
       speciesMap[c.id] = c.flower_species;
     }
 
-    // Fisher-Yates shuffle using CSPRNG
+    // Fisher-Yates shuffle using CSPRNG (rejection-sampled, no modulo bias)
     const deck: number[] = allCards.map((c: { id: number }) => c.id);
     for (let i = deck.length - 1; i > 0; i--) {
-      // Rejection-sample to avoid modulo bias
       const range = i + 1;
       const limit = Math.floor(0x100000000 / range) * range;
       let rand: number;
@@ -144,7 +106,6 @@ Deno.serve(async (req) => {
     }
     const chosen = deck.slice(0, pickCount);
 
-    // Insert sealed reading_cards — 50/50 orientation per spec
     const cardRows = chosen.map((cardId: number, idx: number) => ({
       reading_id: reading.id,
       card_id: cardId,
@@ -158,36 +119,16 @@ Deno.serve(async (req) => {
       return json({ error: "Failed to seal cards" }, 500);
     }
 
-    // Species from primary card's flower_species (position 0).
-    // First reading is always iris — the namesake flower.
-    const primaryCardId = chosen[0];
-    const species = is_first_reading ? "iris" : (speciesMap[primaryCardId] ?? "iris");
+    // Species from primary card; iris fallback. (Final species, incl. iris for a
+    // brand-new garden, is decided by claim_garden after payment.)
+    const species = speciesMap[chosen[0]] ?? "iris";
 
-    return json({
-      reading_id: reading.id,
-      session_token: sessionToken,
-      seeker_id: seekerId,
-      garden_code: gardenCode,
-      species,
-    });
+    return json({ reading_id: reading.id, session_token: sessionToken, species });
   } catch (err) {
     console.error("submit_reading error:", err);
     return json({ error: "Internal server error" }, 500);
   }
 });
-
-async function hashCode(code: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// XXXX-XXXX-XXXX from unambiguous chars — 32^12 ≈ 2^60, no modulo bias
-function generateGardenCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  const raw = Array.from(bytes).map((b) => chars[b % chars.length]).join("");
-  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
