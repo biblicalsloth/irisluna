@@ -52,6 +52,7 @@ export interface Database {
           paid_at: string | null;
           payment_amount: number | null;
           payment_currency: string | null;
+          garden_code: string | null;
           claimed_by: string | null;
           claimed_at: string | null;
           response_audio_path: string | null;
