@@ -11,7 +11,7 @@
 | # | Decision | Resolution |
 |---|---|---|
 | 1 | Payment flow | **Dodo only.** Screenshot upload removed. Webhook confirms payment. |
-| 2 | Admin gate | **Kept.** Webhook sets `paid_at`; admin still presses Verify to move `pending_payment → awaiting_response`. |
+| 2 | Admin gate | **Dropped.** Dodo is MoR — webhook payment is cryptographically verified, so no manual sanity check. `payment.succeeded` webhook auto-flips `pending_payment → awaiting_response`. Admin payment-verify queue removed. |
 | 3 | Checkout type | **Hosted redirect.** Server creates a Dodo checkout session; seeker is redirected to `checkout_url`. |
 | 4 | Server placement | **Supabase Edge Functions** (matches existing arch — all seeker server ops are edge functions). |
 | 5 | Price / currency | **$3 USD**, one-time product. |
@@ -26,17 +26,13 @@ record → pick → PAYWALL ──submit──► pending_payment (paid_at = nul
                                           ▼
                                     [Dodo hosted checkout]
                                           │ payment.succeeded webhook
-                                          ▼
-                              pending_payment (paid_at set)  ← admin sees "ready to verify"
-                                          │ admin Verify (sanity check)
-                                          ▼
+                                          ▼ (auto: set paid_at, expires_at +24h)
                                    awaiting_response → responded → revealed
 ```
 
 - The `status` enum is **unchanged** (`pending_payment | awaiting_response | responded | revealed | expired`).
-- `paid_at` is the new discriminator inside `pending_payment`:
-  - `paid_at IS NULL` → seeker has not completed Dodo checkout (just redirected, or abandoning).
-  - `paid_at IS NOT NULL` → Dodo confirmed payment; reading is ready for admin sanity check.
+- `pending_payment` now means **unpaid only** — the seeker has been redirected to Dodo but not paid yet. No admin acts on it.
+- `paid_at` records when Dodo confirmed payment (stamped at the same instant the webhook flips to `awaiting_response`). It travels with the reading for admin display + audit.
 - **Abandonment:** if the seeker leaves Dodo without paying, the row stays `pending_payment, paid_at = null` and the existing 24h `expire-readings` cron clears it. No new cron needed.
 - **Seal invariant preserved:** cards are still assigned and sealed server-side in `submit_reading` and never returned to the seeker until `responded`. Dodo changes *how payment is proven*, not the seal.
 
@@ -54,9 +50,9 @@ alter table readings
   add column paid_at          timestamptz,
   add column payment_amount   int,        -- minor units (cents)
   add column payment_currency text;       -- e.g. 'USD'
-
-create index on readings (status, paid_at) where status = 'pending_payment';
 ```
+
+(No new index — admin reads the `awaiting_response` queue, already indexed by the original schema.)
 
 No change to `reading_cards`, `cards`, or `profiles`. RLS unchanged (admin/reader policies already cover the new columns via `select` on `readings`).
 
@@ -90,8 +86,8 @@ Failure → `{ error }` with 4xx/5xx; seeker stays on paywall with a retry.
 - Respond 200 quickly; then process.
 - `payment.succeeded`:
   - `reading_id = event.data.metadata.reading_id`.
-  - **Idempotent:** update only `where id = reading_id and paid_at is null`. Set `paid_at = now()`, `dodo_payment_id`, `payment_amount`, `payment_currency`.
-  - Status stays `pending_payment` (admin gate). No status flip here.
+  - **Idempotent + auto-queue:** update only `where id = reading_id and status = 'pending_payment'`. Set `status = 'awaiting_response'`, `paid_at = now()`, `expires_at = now() + interval '24 hours'`, `dodo_payment_id`, `payment_amount`, `payment_currency`.
+  - The status guard makes duplicate deliveries no-ops (second delivery matches no `pending_payment` row).
 - `payment.failed` → log only (row left for cron expiry).
 - Unknown events → 200, ignored.
 
@@ -108,9 +104,11 @@ Drop the `payment_screenshot` signed URL. Return only `question_audio`. Input no
 - Card sealing, recovery code, species, first-reading=iris logic **unchanged**.
 - Response unchanged: `{ reading_id, session_token, recovery_code, species }`.
 
-### 4.5 Unchanged: `verify_payment`, `reject_payment` (verify action), `get_reading_status`, `submit_response`, `reveal_reading`, `recover_reading`
+### 4.5 Unchanged: `get_reading_status`, `submit_response`, `reveal_reading`, `recover_reading`
 
-`verify_payment` still flips `pending_payment → awaiting_response` and resets `expires_at = now() + 24h`.
+### 4.6 Deprecated: `verify_payment`
+
+With auto-queue, nothing reaches the admin in a paid-but-unqueued state, so the manual verify/reject step is gone. Leave the `verify_payment` function deployed but unreferenced (out of scope to delete); the admin UI no longer calls it.
 
 ---
 
@@ -138,13 +136,13 @@ Dev fallback (no `NEXT_PUBLIC_SUPABASE_URL`) unchanged behavior: store placehold
 
 ---
 
-## 6. Admin (light change)
+## 6. Admin (change)
 
-`app/admin/page.tsx` payment queue + `app/admin/[readingId]/page.tsx`:
+`app/admin/page.tsx` + `app/admin/[readingId]/page.tsx`:
 
-- Replace the payment-screenshot thumbnail/viewer with Dodo payment info: amount + currency, `dodo_payment_id`, `paid_at` ("paid 2h ago").
-- Show paid-ready readings (`paid_at IS NOT NULL`) first / by default; unpaid `pending_payment` rows are de-emphasized or hidden (they expire on their own).
-- Verify / Reject buttons unchanged (call existing `verify_payment`).
+- **Remove the payment-verification queue / `pending_payment` tab** — readings now land directly in `awaiting_response` (the reader queue). No manual verify/reject step.
+- Replace the payment-screenshot thumbnail/viewer with read-only Dodo payment info on each reader-queue row: amount + currency, `dodo_payment_id`, `paid_at` ("paid 2h ago").
+- Reader queue behavior (claim, listen, respond) unchanged.
 
 ---
 
@@ -181,7 +179,7 @@ Dodo dashboard (manual, one-time):
 
 1. Seeker completes record → pick → paywall → Dodo checkout → returns to `/wait`, no screenshot step anywhere.
 2. A reading row exists in `pending_payment` with `paid_at = null` between `submit_reading` and payment completion; never exposes card identities.
-3. `payment.succeeded` webhook (valid signature) sets `paid_at`; duplicate deliveries are no-ops; invalid signature → 401.
-4. Admin sees the paid reading as "ready to verify"; pressing Verify moves it to `awaiting_response`.
+3. `payment.succeeded` webhook (valid signature) flips the reading to `awaiting_response`, sets `paid_at` + `expires_at +24h`; duplicate deliveries are no-ops; invalid signature → 401.
+4. The paid reading appears directly in the admin reader queue (`awaiting_response`) with Dodo payment info; no manual verify step exists.
 5. Abandoned checkout leaves a `pending_payment, paid_at=null` row that the 24h cron expires.
 6. `npm run build` passes; no references to screenshot upload remain in the seeker paywall path.
