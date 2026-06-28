@@ -14,7 +14,13 @@ Deno.serve(async (req) => {
   try {
     const raw = await req.text();
 
-    const wh = new Webhook(Deno.env.get("DODO_WEBHOOK_SECRET")!);
+    const secret = Deno.env.get("DODO_WEBHOOK_SECRET");
+    if (!secret) {
+      console.error("DODO_WEBHOOK_SECRET not set");
+      return json({ error: "Webhook not configured" }, 500);
+    }
+
+    const wh = new Webhook(secret);
     try {
       wh.verify(raw, {
         "webhook-id": req.headers.get("webhook-id") ?? "",
@@ -53,12 +59,16 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    const { data: reading } = await admin
+    const { data: reading, error: readErr } = await admin
       .from("readings")
       .select("id, status, paid_at")
       .eq("id", readingId)
       .single();
 
+    if (readErr && readErr.code !== "PGRST116") {
+      console.error("webhook reading lookup failed:", readErr);
+      return json({ error: "Lookup failed" }, 500);
+    }
     if (!reading) return json({ ok: true, ignored: "reading_not_found" });
     if (reading.paid_at) return json({ ok: true, ignored: "already_paid" });
 
