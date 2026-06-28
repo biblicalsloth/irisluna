@@ -28,7 +28,7 @@ export default function DeckPage() {
 
   function handleConfirm(positions: number[]) {
     setPositions(positions);
-    router.push("/auth");
+    router.push("/pay");
   }
 
   if (!blob) return null;
