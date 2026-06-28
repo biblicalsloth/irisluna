@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
       payment_screenshot_path: string;
       email?: string;
       is_first_reading?: boolean;
+      seeker_id?: string;
     };
 
     const {
@@ -66,16 +67,36 @@ Deno.serve(async (req) => {
     );
 
     const sessionToken = crypto.randomUUID();
-    const recoveryCode = generateRecoveryCode();
-    const recoveryCodeHash = await hashCode(recoveryCode);
     const pickCount = spread_type === "single" ? 1 : 3;
+
+    // Resolve or mint the seeker (anonymous garden owner).
+    let seekerId: string | null = null;
+    let gardenCode: string | undefined;
+
+    if (body.seeker_id) {
+      const { data: existing } = await admin
+        .from("seekers").select("id").eq("id", body.seeker_id).single();
+      if (existing) seekerId = existing.id;
+    }
+
+    if (!seekerId) {
+      gardenCode = generateGardenCode();
+      const gardenCodeHash = await hashCode(gardenCode);
+      const { data: seeker, error: seekerErr } = await admin
+        .from("seekers").insert({ garden_code_hash: gardenCodeHash }).select("id").single();
+      if (seekerErr || !seeker) {
+        console.error("insert seeker error:", seekerErr);
+        return json({ error: "Failed to create seeker" }, 500);
+      }
+      seekerId = seeker.id;
+    }
 
     // Create reading row
     const { data: reading, error: readingErr } = await admin
       .from("readings")
       .insert({
         session_token: sessionToken,
-        recovery_code: recoveryCodeHash,
+        seeker_id: seekerId,
         spread_type,
         question_audio_path,
         question_duration_ms: question_duration_ms ?? null,
@@ -145,7 +166,8 @@ Deno.serve(async (req) => {
     return json({
       reading_id: reading.id,
       session_token: sessionToken,
-      recovery_code: recoveryCode,
+      seeker_id: seekerId,
+      garden_code: gardenCode,
       species,
     });
   } catch (err) {
@@ -160,7 +182,7 @@ async function hashCode(code: string): Promise<string> {
 }
 
 // XXXX-XXXX-XXXX from unambiguous chars — 32^12 ≈ 2^60, no modulo bias
-function generateRecoveryCode(): string {
+function generateGardenCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(12));
   const raw = Array.from(bytes).map((b) => chars[b % chars.length]).join("");
