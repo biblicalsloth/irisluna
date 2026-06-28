@@ -139,29 +139,6 @@ function WaitPageInner() {
         <StatusCopy key={reading.status} status={reading.status} />
       </AnimatePresence>
 
-      {/* Recovery code — shown only while waiting */}
-      {reading.recoveryCode && reading.status === "pending_payment" && (
-        <motion.div
-          className="flex flex-col items-center gap-1 mt-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.6, duration: 0.8 }}
-        >
-          <p className="text-[9px] uppercase tracking-[0.18em]" style={{ color: "rgba(108,106,130,0.5)" }}>
-            recovery code
-          </p>
-          <p
-            className="font-mono text-base tracking-[0.22em]"
-            style={{ color: "rgba(183,174,234,0.55)" }}
-          >
-            {reading.recoveryCode}
-          </p>
-          <p className="text-[9px] text-center max-w-[200px] leading-relaxed mt-1" style={{ color: "rgba(108,106,130,0.4)" }}>
-            screenshot this to restore your reading on another device
-          </p>
-        </motion.div>
-      )}
-
       <motion.div
         className="absolute bottom-10"
         initial={{ opacity: 0 }}

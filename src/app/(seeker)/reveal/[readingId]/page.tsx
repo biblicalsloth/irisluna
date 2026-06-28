@@ -221,7 +221,7 @@ export default function RevealPage() {
       {/* Cards */}
       {fetchState.phase === "ready" && (
         <motion.div
-          className="flex items-end justify-center gap-6 mb-16"
+          className="flex items-start justify-center gap-6 mb-16"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.6 }}

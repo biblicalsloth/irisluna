@@ -10,14 +10,14 @@ interface CardProps {
   onClick: () => void;
 }
 
-/* Arc fan geometry */
+/* Arc fan geometry — wide spread to fill screen */
 function getFanTransform(index: number, total: number): { rotate: number; x: number; y: number } {
   if (total === 1) return { rotate: 0, x: 0, y: 0 };
-  const spread = total <= 3 ? 22 : 16;
-  const step = (spread * 2) / (total - 1);
-  const angle = -spread + step * index;
-  const arc = Math.abs(angle) * 1.4;
-  return { rotate: angle, x: angle * 5.5, y: arc };
+  const t = index / (total - 1); // 0 → 1
+  const angle = (t - 0.5) * 70;  // –35° → +35°
+  const x = (t - 0.5) * 320;     // –160px → +160px
+  const y = Math.abs(t - 0.5) * 38; // edges lift slightly
+  return { rotate: angle, x, y };
 }
 
 export function Card({ index, total, isSelected, isDisabled, onClick }: CardProps) {

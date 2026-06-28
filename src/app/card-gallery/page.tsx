@@ -44,7 +44,7 @@ export default function CardGallery() {
         <div style={{ width: 80, height: 130, borderRadius: 6, overflow: "hidden", background: "#12121E", border: "1px solid rgba(124,111,203,0.2)" }}>
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <img src={src} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           ) : (
             <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontSize: 8, color: "rgba(183,174,234,0.3)" }}>no art</span>

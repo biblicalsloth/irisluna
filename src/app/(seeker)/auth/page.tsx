@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFlowStore } from "@/lib/flow/store";
-import { storeReading, getStoredReadings } from "@/lib/session";
+import { storeReading, getStoredReadings, getSeeker, setSeeker } from "@/lib/session";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
@@ -124,6 +124,7 @@ export default function PaywallPage() {
           payment_screenshot_path: payment_screenshot.path,
           email: email || undefined,
           is_first_reading: isFirstReading,
+          seeker_id: getSeeker()?.seekerId,
         }),
       });
 
@@ -132,14 +133,16 @@ export default function PaywallPage() {
         throw new Error(err.error ?? "Submission failed");
       }
 
-      const { reading_id, session_token, recovery_code, species } = await submitRes.json() as {
+      const { reading_id, session_token, seeker_id, garden_code, species } = await submitRes.json() as {
         reading_id: string;
         session_token: string;
-        recovery_code?: string;
+        seeker_id: string;
+        garden_code?: string;
         species?: string;
       };
 
-      storeReading(reading_id, session_token, spreadType ?? "three", species as import("@/types/garden").FlowerSpecies | undefined, recovery_code);
+      setSeeker(seeker_id, garden_code);
+      storeReading(reading_id, session_token, spreadType ?? "three", species as import("@/types/garden").FlowerSpecies | undefined);
       clear();
       router.push(`/wait/${reading_id}`);
     } catch (err) {

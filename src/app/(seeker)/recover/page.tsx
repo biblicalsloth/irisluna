@@ -3,7 +3,8 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { storeReading } from "@/lib/session";
+import { restoreGarden, setSeeker } from "@/lib/session";
+import type { ReadingStatus } from "@/lib/supabase/types";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -36,38 +37,45 @@ export default function RecoverPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/recover_reading`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/restore_garden`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${ANON_KEY}`,
         },
-        body: JSON.stringify({ recovery_code: code }),
+        body: JSON.stringify({ garden_code: code }),
       });
 
       const data = await res.json() as {
-        reading_id?: string;
-        session_token?: string;
-        spread_type?: "single" | "three";
-        status?: string;
+        seeker_id?: string;
+        readings?: Array<{
+          reading_id: string;
+          session_token: string;
+          status: string;
+          spread_type: "single" | "three";
+          created_at: string;
+        }>;
         error?: string;
       };
 
-      if (!res.ok || !data.reading_id || !data.session_token) {
-        setError(data.error ?? "No reading found for that code.");
+      if (!res.ok || !data.seeker_id) {
+        setError(data.error ?? "No garden found for that code.");
         setLoading(false);
         return;
       }
 
-      storeReading(
-        data.reading_id,
-        data.session_token,
-        data.spread_type ?? "three",
-        undefined,
-        code,
+      setSeeker(data.seeker_id, code);
+      restoreGarden(
+        (data.readings ?? []).map((r) => ({
+          readingId: r.reading_id,
+          sessionToken: r.session_token,
+          status: r.status as ReadingStatus,
+          spreadType: r.spread_type,
+          createdAt: new Date(r.created_at).getTime(),
+        })),
       );
 
-      router.replace(`/wait/${data.reading_id}`);
+      router.replace(`/`);
     } catch {
       setError("Something went wrong. Check your connection and try again.");
       setLoading(false);
@@ -92,12 +100,12 @@ export default function RecoverPage() {
             iris luna
           </span>
           <p className="text-muted text-[10px] uppercase tracking-[0.2em]">
-            restore a reading
+            restore your garden
           </p>
         </div>
 
         <p className="text-sm text-center leading-relaxed" style={{ color: "rgba(183,174,234,0.45)" }}>
-          Enter the recovery code from your wait screen to restore your reading on this device.
+          Enter your garden code to bring back every reading on this device.
         </p>
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col items-center gap-5">
@@ -144,7 +152,7 @@ export default function RecoverPage() {
               cursor: ready ? "pointer" : "not-allowed",
             }}
           >
-            {loading ? "looking up…" : "restore reading"}
+            {loading ? "looking up…" : "restore garden"}
           </button>
         </form>
 

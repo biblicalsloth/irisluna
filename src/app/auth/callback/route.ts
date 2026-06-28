@@ -7,12 +7,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/admin";
-  let next = "/admin";
+  const here = new URL(request.url);
+  // Default to a known-safe same-origin path; only accept `next` if it
+  // resolves to this exact origin. Redirect to the validated URL directly
+  // (no string round-trip) so a protocol-relative path can't slip through.
+  let next = new URL("/admin", here);
   try {
-    const candidate = new URL(rawNext, request.url);
-    const here = new URL(request.url);
+    const candidate = new URL(rawNext, here);
     if (candidate.origin === here.origin) {
-      next = candidate.pathname + candidate.search + candidate.hash;
+      next = candidate;
     }
   } catch { /* keep default */ }
 
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
+      return NextResponse.redirect(next);
     }
   }
 
