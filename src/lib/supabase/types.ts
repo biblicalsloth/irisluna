@@ -44,9 +44,14 @@ export interface Database {
           question_duration_ms: number | null;
           email: string | null;
           status: ReadingStatus;
-          payment_screenshot_path: string;
+          payment_screenshot_path: string | null;
           payment_verified_at: string | null;
           verified_by: string | null;
+          dodo_session_id: string | null;
+          dodo_payment_id: string | null;
+          paid_at: string | null;
+          payment_amount: number | null;
+          payment_currency: string | null;
           claimed_by: string | null;
           claimed_at: string | null;
           response_audio_path: string | null;
