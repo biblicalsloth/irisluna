@@ -1,3 +1,4 @@
+import "server-only";
 import { Resend } from "resend";
 
 export const resend = new Resend(process.env.RESEND_API_KEY);
@@ -5,7 +6,7 @@ export const resend = new Resend(process.env.RESEND_API_KEY);
 export async function sendReadyEmail(to: string, readingId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   await resend.emails.send({
-    from: "Iris Luna <readings@irisluna.app>",
+    from: "Iris Luna <support@irisluna.cc>",
     to,
     subject: "The human has answered — your reading is ready.",
     html: `
