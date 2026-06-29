@@ -67,6 +67,8 @@ export function storeReading(
   species?: FlowerSpecies,
 ): StoredReading {
   const existing = getStoredReadings();
+  const prior = existing.find((r) => r.readingId === readingId);
+  if (prior) return prior;
   const isFirst = existing.length === 0;
   const h = hash(readingId);
 

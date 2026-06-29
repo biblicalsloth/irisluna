@@ -260,17 +260,17 @@ export default function PayPage() {
         <motion.button
           type="button"
           onClick={() => void handlePay()}
-          disabled={submitting}
+          disabled={submitting || keyBusy}
           className="w-full py-3.5 rounded-lg text-sm uppercase tracking-[0.18em] transition-all duration-300"
           style={{
-            background: submitting ? "oklch(0.52 0.118 283 / 0.22)" : "oklch(0.52 0.118 283)",
-            color: submitting ? "oklch(0.94 0.018 301 / 0.3)" : "oklch(0.94 0.018 301)",
-            cursor: submitting ? "not-allowed" : "pointer",
+            background: submitting || keyBusy ? "oklch(0.52 0.118 283 / 0.22)" : "oklch(0.52 0.118 283)",
+            color: submitting || keyBusy ? "oklch(0.94 0.018 301 / 0.3)" : "oklch(0.94 0.018 301)",
+            cursor: submitting || keyBusy ? "not-allowed" : "pointer",
           }}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.7 }}
-          whileTap={submitting ? {} : { scale: 0.98 }}
+          whileTap={submitting || keyBusy ? {} : { scale: 0.98 }}
         >
           {submitting ? "opening payment…" : `pay ${AMOUNT}`}
         </motion.button>

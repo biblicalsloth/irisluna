@@ -32,20 +32,26 @@ function KeyPageInner() {
   const pollsRef = useRef(0);
   const storedRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [emailInput, setEmailInput] = useState("");
   const [emailSent, setEmailSent] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const claim = useCallback(async (email?: string): Promise<ClaimResult | null> => {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/claim_garden`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ reading_id: readingId, session_token: token, email }),
-    });
-    if (res.status === 409) return null; // not paid yet
-    if (!res.ok) return null;
-    return await res.json() as ClaimResult;
+  const claim = useCallback(async (email?: string): Promise<ClaimResult | "retry" | "fatal"> => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/claim_garden`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON_KEY}` },
+        body: JSON.stringify({ reading_id: readingId, session_token: token, email }),
+      });
+      if (res.status === 409) return "retry"; // not paid yet
+      if (res.status === 403 || res.status === 404) return "fatal"; // bad token / no reading
+      if (!res.ok) return "retry";
+      return await res.json() as ClaimResult;
+    } catch {
+      return "retry";
+    }
   }, [readingId, token]);
 
   // Poll until paid
@@ -56,7 +62,8 @@ function KeyPageInner() {
       if (!active) return;
       const r = await claim();
       if (!active) return;
-      if (r) { setResult(r); return; }
+      if (r === "fatal") { setTimedOut(true); return; }
+      if (r !== "retry") { setResult(r); return; }
       pollsRef.current += 1;
       if (pollsRef.current >= MAX_POLLS) { setTimedOut(true); return; }
       pollTimerRef.current = setTimeout(tick, POLL_MS);
@@ -76,15 +83,17 @@ function KeyPageInner() {
   async function handleEmail() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailInput)) return;
     const r = await claim(emailInput);
-    if (r) setEmailSent(true);
+    if (r && r !== "retry" && r !== "fatal") setEmailSent(true);
   }
 
   async function handleCopy() {
     if (!result?.garden_code) return;
     await navigator.clipboard.writeText(result.garden_code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   }
+
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   // Returning user (no new key): straight to the garden
   useEffect(() => {

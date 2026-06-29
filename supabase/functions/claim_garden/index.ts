@@ -78,9 +78,14 @@ Deno.serve(async (req) => {
       } else {
         // Lost the race: another call already attached a garden. Drop our
         // orphan seeker and use the winner's values.
-        await admin.from("seekers").delete().eq("id", seeker.id);
-        const { data: fresh } = await admin
+        const { error: delErr } = await admin.from("seekers").delete().eq("id", seeker.id);
+        if (delErr) console.error("orphan seeker cleanup failed:", delErr);
+        const { data: fresh, error: freshErr } = await admin
           .from("readings").select("seeker_id, garden_code").eq("id", reading.id).single();
+        if (freshErr) {
+          console.error("race-loser re-read failed:", freshErr);
+          return json({ error: "Failed to load garden" }, 500);
+        }
         seekerId = fresh?.seeker_id ?? null;
         gardenCode = fresh?.garden_code ?? null;
         isNewGarden = false;
